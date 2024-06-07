@@ -10,11 +10,9 @@ import (
 type TemplateFilename string
 
 var (
-	DiscoveredOrganizations TemplateFilename = "templates/discoveredOrganizations.html"
-	DiscoveryLogin          TemplateFilename = "templates/discoveryLogin.html"
-	EmailSent               TemplateFilename = "templates/emailSent.html"
-	LoggedIn                TemplateFilename = "templates/loggedIn.html"
-	OrganizationLogin       TemplateFilename = "templates/organizationLogin.html"
+	DiscoveredOrganizations TemplateFilename = "templates/discoveredOrganizations.gohtml"
+	LoggedIn                TemplateFilename = "templates/loggedIn.gohtml"
+	OrganizationLogin       TemplateFilename = "templates/organizationLogin.gohtml"
 )
 
 type DiscoveredOrganization struct {
@@ -27,6 +25,8 @@ type TemplateData struct {
 	IsLogin                 bool
 	Member                  *organizations.Member
 	Organization            *organizations.Organization
+	OrganizationId          string
+	OrganizationName        string
 	DiscoveredOrganizations []DiscoveredOrganization
 }
 

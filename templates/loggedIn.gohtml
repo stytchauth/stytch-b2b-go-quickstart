@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <title>Dashboard</title>
-    <link rel="stylesheet" type="text/css" href="css/styles.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
 </head>
 <body>
 <div class="card">
@@ -11,19 +11,21 @@
             Welcome to {{ .Organization.OrganizationName }}
         </h1>
         <h2>Organization Info</h2>
+        <p>Name: {{ .Organization.OrganizationName }}</p>
+        <br/>
         <p>Slug: {{ .Organization.OrganizationSlug }}</p>
-        <% if (organization.email_jit_provisioning === 'NOT_ALLOWED') { %>
-            <% if (member.is_admin) { %>
+        {{ if eq .Organization.EmailJITProvisioning "NOT_ALLOWED" }}
+            {{ if .Member.IsAdmin }}
                 <button type="submit" onClick="enableJIT()">Enable JIT Provisioning by Email Domain</button>
-            <% } else { %>
+            {{ else }}
                 <p> JIT Provisioning: NOT_ALLOWED </p>
-            <% } %>
-        <% } else { %>
-            <p>JIT Provisioning Allowed for Domains: {{ organization.email_allowed_domains}} </p>
-        <% } %>
+            {{ end }}
+        {{ else }}
+            <p>JIT Provisioning Allowed for Domains: {{ .Organization.EmailAllowedDomains }} </p>
+        {{ end }}
         <h2>Profile Info</h2>
-        <p>Email: <%= member.email_address %></p>
-        <p>Admin Role: <%= member.is_admin %></p>
+        <p>Email: {{ .Member.EmailAddress }}</p>
+        <p>Admin Role: {{ .Member.IsAdmin }}</p>
     </div>
     <button type="submit" onclick="logout()">Logout</button>
     <button type="submit" onclick="switchOrgs()">Switch Organizations</button>
@@ -34,11 +36,11 @@
         }
 
         function enableJIT() {
-            window.location.href = `/enable_jit`;
+            window.location.href = `/enable-jit`;
         }
 
         function switchOrgs() {
-            window.location.href = `/switch_orgs`;
+            window.location.href = `/switch-orgs`;
         }
     </script>
 </div>

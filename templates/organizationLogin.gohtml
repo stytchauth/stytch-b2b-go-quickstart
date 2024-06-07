@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <title>Login</title>
-    <link rel="stylesheet" type="text/css" href="css/styles.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
 </head>
 <body>
 <div class="card">
     <div class="card-content">
-        <h1>Login to the <%= organization_name %>  Organization</h1>
+        <h1>Login to the {{ .OrganizationName }} Organization</h1>
     </div>
     <h4>Organization Login allows you to host targeted sign-in pages for specific Organizations</h4>
     <div class="login-container">
