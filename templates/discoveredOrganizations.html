@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
+</head>
+<body>
+<div class="card">
+    <div class="card-content">
+        <h1>Discovered Organizations for <%= email %></h1>
+    </div>
+    {{if .IsLogin}}
+    <p>If you have any existing memberships, pending invitations, or Organizations you can join through Just-In-Time
+        (JIT) Provisioning they will be displayed here.<br/>Otherwise you can create a new Organization</p>
+    {{else}}
+    <p>Stytch allows users to switch between Organizations that they have active or pending Memberships, without
+        needing to re-authenticate</p>
+    {{end}}
+    <div class="button-container">
+        {{ range .DiscoveredOrganizations }}
+        <button onclick="selectOrg()">
+            {{.OrganizationName}}
+        </button>
+        {{ end }}
+        {{ if .DiscoveredOrganizations }}
+        <div class="divider">
+            <hr class="line"/>
+        </div>
+        {{ end }}
+        {{ if .IsLogin }}
+        <button id="btnCreateOrg">
+            Create New Organization
+        </button>
+        {{ end }}
+    </div>
+    <div id="orgModal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <form action="/create_organization" method="POST">
+                <h2>Create Organization</h2>
+                <label for="org_name"><strong>Organization Name:</strong></label>
+                <input type="text" id="org_name" name="org_name" placeholder="Olive Garden" required><br>
+                <label for="org_slug"><strong>Organization Slug:</strong></label>
+                <p>Unique URL slug consisting of alphanumeric characters and the following reserved characters: - . _
+                    ~</p>
+                <input type="text" id="org_slug" name="org_slug" placeholder="olive-garden" required><br>
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        function selectOrg(organizationId) {
+            window.location.href = `/exchange/${organizationId}`;
+        }
+
+        // Get the modal
+        const modal = document.getElementById("orgModal");
+
+        // Get the button that opens the modal
+        const btn = document.getElementById("btnCreateOrg");
+
+        // Get the <span> element that closes the modal
+        const span = document.getElementsByClassName("close")[0];
+
+        // When the user clicks the button, open the modal
+        btn.onclick = function () {
+            modal.style.display = "block";
+        }
+
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function () {
+            modal.style.display = "none";
+        }
+
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function (event) {
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</div>
+</body>
+</html>
