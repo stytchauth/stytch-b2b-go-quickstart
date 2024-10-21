@@ -1,6 +1,6 @@
 # Stytch: B2B Magic Links Example
 
-This repository contains a sample application demonstrating a B2B Magic Links
+This repository contains a sample application demonstrating a B2B Magic Link and Google Auth
 flow using a Go backend.
 
 ## Running Locally
@@ -9,8 +9,8 @@ flow using a Go backend.
 
 - Go `^v1.22`.
 - A Stytch account.
-    - A test project.
-    - The project id and project secret for your test project.
+  - A test project.
+  - The project id and project secret for your test project.
 
 ### Quickstart
 
@@ -44,7 +44,7 @@ The service will be available at [http://localhost:3000/](http://localhost:3000/
 
 ## Next steps
 
-This example app showcases a small portion of what you can accomplish with Stytch. Next, explore adding additional login methods, such as [OAuth](https://stytch.com/docs/b2b/guides/oauth/initial-setup) or [SSO](https://stytch.com/docs/b2b/guides/sso/initial-setup).
+This example app showcases a small portion of what you can accomplish with Stytch. Next, explore adding additional login methods, such as [SSO](https://stytch.com/docs/b2b/guides/sso/initial-setup).
 
 ## Get help and join the community
 

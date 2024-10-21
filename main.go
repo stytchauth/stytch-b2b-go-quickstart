@@ -19,6 +19,7 @@ import (
 	discovery2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/discovery"
 	email2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/email"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/email/discovery"
+	oauthdiscovery "github.com/stytchauth/stytch-go/v12/stytch/b2b/oauth/discovery"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/organizations"
 	sessions2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/sessions"
 	"github.com/stytchauth/stytch-go/v12/stytch/methodoptions"
@@ -181,6 +182,39 @@ func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.R
 		// you present the user with the Organizations they can log into, or the option to create
 		// a new Organization.
 		s.saveSession(w, r, intermediateSessionKey, resp.IntermediateSessionToken)
+
+		discoveredOrgs := make([]DiscoveredOrganization, len(resp.DiscoveredOrganizations))
+		for i := range resp.DiscoveredOrganizations {
+			discoveredOrgs[i] = DiscoveredOrganization{
+				OrganizationId:   resp.DiscoveredOrganizations[i].Organization.OrganizationID,
+				OrganizationName: resp.DiscoveredOrganizations[i].Organization.OrganizationName,
+			}
+		}
+		// Sort Organizations alphabetically.
+		slices.SortFunc(discoveredOrgs, func(a, b DiscoveredOrganization) int {
+			return cmp.Compare(a.OrganizationName, b.OrganizationName)
+		})
+
+		log.Println("Successfully authenticated with discovery")
+		if err := RenderTemplate(w, DiscoveredOrganizations, &TemplateData{
+			Email:                   resp.EmailAddress,
+			IsLogin:                 true,
+			DiscoveredOrganizations: discoveredOrgs,
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if tokenType == "discovery_oauth" {
+		resp, err := s.client.OAuth.Discovery.Authenticate(ctx, &oauthdiscovery.AuthenticateParams{
+			DiscoveryOAuthToken: token,
+		})
+		if err != nil {
+			log.Printf("Error authenticating: %v\n", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		discoveredOrgs := make([]DiscoveredOrganization, len(resp.DiscoveredOrganizations))
 		for i := range resp.DiscoveredOrganizations {
