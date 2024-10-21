@@ -215,6 +215,9 @@ func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.R
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		fmt.Println(resp.IntermediateSessionToken)
+
+		s.saveSession(w, r, intermediateSessionKey, resp.IntermediateSessionToken)
 
 		discoveredOrgs := make([]DiscoveredOrganization, len(resp.DiscoveredOrganizations))
 		for i := range resp.DiscoveredOrganizations {
