@@ -13,12 +13,12 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/b2bstytchapi"
+	b2bdiscovery "github.com/stytchauth/stytch-go/v12/stytch/b2b/discovery"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/discovery/intermediatesessions"
 	organizations2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/discovery/organizations"
-	"github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks"
 	discovery2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/discovery"
-	email2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/email"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/magiclinks/email/discovery"
+	oauthdiscovery "github.com/stytchauth/stytch-go/v12/stytch/b2b/oauth/discovery"
 	"github.com/stytchauth/stytch-go/v12/stytch/b2b/organizations"
 	sessions2 "github.com/stytchauth/stytch-go/v12/stytch/b2b/sessions"
 	"github.com/stytchauth/stytch-go/v12/stytch/methodoptions"
@@ -33,7 +33,7 @@ func main() {
 	}
 
 	// Instantiate a new API service.
-	service := NewMagicLinksService(
+	service := NewAuthService(
 		os.Getenv("STYTCH_PROJECT_ID"),
 		os.Getenv("STYTCH_SECRET"),
 	)
@@ -70,18 +70,18 @@ func main() {
 // Magic Links Service.
 //
 
-type MagicLinksService struct {
+type AuthService struct {
 	client *b2bstytchapi.API
 	store  *sessions.CookieStore
 }
 
-func NewMagicLinksService(projectId, secret string) *MagicLinksService {
+func NewAuthService(projectId, secret string) *AuthService {
 	client, err := b2bstytchapi.NewClient(projectId, secret)
 	if err != nil {
 		log.Fatalf("Error creating client: %v", err)
 	}
 
-	return &MagicLinksService{
+	return &AuthService{
 		client: client,
 		store:  sessions.NewCookieStore([]byte("your-secret-key")),
 	}
@@ -91,7 +91,7 @@ func NewMagicLinksService(projectId, secret string) *MagicLinksService {
 // Magic Links handlers.
 //
 
-func (s *MagicLinksService) indexHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) indexHandler(w http.ResponseWriter, r *http.Request) {
 	// Check for an existing session token in the browser.
 	// If one is found, and it corresponds to an active session,
 	// redirect the user.
@@ -111,16 +111,16 @@ func (s *MagicLinksService) indexHandler(w http.ResponseWriter, r *http.Request)
 	http.ServeFile(w, r, "templates/discoveryLogin.html")
 }
 
-func (s *MagicLinksService) logoutHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	s.clearSession(w, r, sessionKey)
 	s.indexHandler(w, r)
 }
 
 // sendMagicLinkHandler is an example of initiating Magic Link authentication.
-// Magic Links can be used for "Discovery Sign-up or Login" (no OrgID passed)
-// OR "Organization Login" (with an OrgID passed).
+// Magic Links can be used for "Discovery Sign-up or Login" (no OrgID passed) OR "Organization Login" (with an OrgID passed).
 // You can read more about these differences here: https://stytch.com/docs/b2b/guides/login-flows.
-func (s *MagicLinksService) sendMagicLinkHandler(w http.ResponseWriter, r *http.Request) {
+// In this example app, we only use Magic Links for Discovery Sign-up or Login.
+func (s *AuthService) sendMagicLinkHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		log.Printf("Error parsing form: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,13 +128,11 @@ func (s *MagicLinksService) sendMagicLinkHandler(w http.ResponseWriter, r *http.
 	}
 
 	email := r.Form.Get("email")
-	orgId := r.Form.Get("orgId")
 	if email == "" {
 		http.Error(w, "Email is required", http.StatusBadRequest)
 		return
 	}
 
-	if orgId == "" {
 		_, err := s.client.MagicLinks.Email.Discovery.Send(ctx, &discovery.SendParams{
 			EmailAddress: email,
 		})
@@ -143,17 +141,6 @@ func (s *MagicLinksService) sendMagicLinkHandler(w http.ResponseWriter, r *http.
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	} else {
-		_, err := s.client.MagicLinks.Email.LoginOrSignup(ctx, &email2.LoginOrSignupParams{
-			OrganizationID: orgId,
-			EmailAddress:   email,
-		})
-		if err != nil {
-			log.Printf("Error sending email: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
 
 	log.Println("Successfully sent magic link email")
 	http.ServeFile(w, r, "templates/emailSent.html")
@@ -163,9 +150,12 @@ func (s *MagicLinksService) sendMagicLinkHandler(w http.ResponseWriter, r *http.
 // For these flows Stytch will call the Redirect URL specified in your dashboard
 // with an auth token and stytch_token_type that will allow you to complete the flow.
 // Read more about Redirect URLs and Token Types here: https://stytch.com/docs/b2b/guides/dashboard/redirect-urls.
-func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) authenticateHandler(w http.ResponseWriter, r *http.Request) {
 	tokenType := r.URL.Query().Get("stytch_token_type")
 	token := r.URL.Query().Get("token")
+
+	var authenticatedEmail string;
+	var responseDiscoveredOrgs []b2bdiscovery.DiscoveredOrganization;
 
 	if tokenType == "discovery" {
 		resp, err := s.client.MagicLinks.Discovery.Authenticate(ctx, &discovery2.AuthenticateParams{
@@ -182,32 +172,11 @@ func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.R
 		// a new Organization.
 		s.saveSession(w, r, intermediateSessionKey, resp.IntermediateSessionToken)
 
-		discoveredOrgs := make([]DiscoveredOrganization, len(resp.DiscoveredOrganizations))
-		for i := range resp.DiscoveredOrganizations {
-			discoveredOrgs[i] = DiscoveredOrganization{
-				OrganizationId:   resp.DiscoveredOrganizations[i].Organization.OrganizationID,
-				OrganizationName: resp.DiscoveredOrganizations[i].Organization.OrganizationName,
-			}
-		}
-		// Sort Organizations alphabetically.
-		slices.SortFunc(discoveredOrgs, func(a, b DiscoveredOrganization) int {
-			return cmp.Compare(a.OrganizationName, b.OrganizationName)
-		})
-
-		log.Println("Successfully authenticated with discovery")
-		if err := RenderTemplate(w, DiscoveredOrganizations, &TemplateData{
-			Email:                   resp.EmailAddress,
-			IsLogin:                 true,
-			DiscoveredOrganizations: discoveredOrgs,
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-
-	if tokenType == "multi_tenant_magic_links" {
-		resp, err := s.client.MagicLinks.Authenticate(ctx, &magiclinks.AuthenticateParams{
-			MagicLinksToken: token,
+		authenticatedEmail = resp.EmailAddress
+		responseDiscoveredOrgs = resp.DiscoveredOrganizations
+	} else if tokenType == "discovery_oauth" {
+		resp, err := s.client.OAuth.Discovery.Authenticate(ctx, &oauthdiscovery.AuthenticateParams{
+			DiscoveryOAuthToken: token,
 		})
 		if err != nil {
 			log.Printf("Error authenticating: %v\n", err)
@@ -215,14 +184,36 @@ func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		s.saveSession(w, r, sessionKey, resp.SessionToken)
-		log.Println("Successfully authenticated with multi_tenant_magic_links")
-		s.indexHandler(w, r)
+		s.saveSession(w, r, intermediateSessionKey, resp.IntermediateSessionToken)
+
+		authenticatedEmail = resp.EmailAddress
+		responseDiscoveredOrgs = resp.DiscoveredOrganizations
+	} else {
+		log.Printf("Error: unrecognized token type %s\n", tokenType)
+		http.Error(w, fmt.Sprintf("Unrecognized token type %s", tokenType), http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Error: unrecognized token type %s\n", tokenType)
-	http.Error(w, fmt.Sprintf("Unrecognized token type %s", tokenType), http.StatusBadRequest)
+	discoveredOrgs := make([]DiscoveredOrganization, len(responseDiscoveredOrgs))
+	for i := range responseDiscoveredOrgs {
+		discoveredOrgs[i] = DiscoveredOrganization{
+			OrganizationId:   responseDiscoveredOrgs[i].Organization.OrganizationID,
+			OrganizationName: responseDiscoveredOrgs[i].Organization.OrganizationName,
+		}
+	}
+	// Sort Organizations alphabetically.
+	slices.SortFunc(discoveredOrgs, func(a, b DiscoveredOrganization) int {
+		return cmp.Compare(a.OrganizationName, b.OrganizationName)
+	})
+
+	log.Println("Successfully authenticated with discovery")
+	if err := RenderTemplate(w, DiscoveredOrganizations, &TemplateData{
+		Email:                   authenticatedEmail,
+		IsLogin:                 true,
+		DiscoveredOrganizations: discoveredOrgs,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // createOrgHandler is an example of creating a new Organization after Discovery
@@ -231,7 +222,7 @@ func (s *MagicLinksService) authenticateHandler(w http.ResponseWriter, r *http.R
 // This will then exchange the IST returned from the discovery.authenticate() call, which
 // allows Stytch to enforce that users are properly authenticated and verified prior to
 // creating an Organization.
-func (s *MagicLinksService) createOrgHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) createOrgHandler(w http.ResponseWriter, r *http.Request) {
 	istSession, _ := s.store.Get(r, intermediateSessionKey)
 	ist := istSession.Values["token"].(string)
 	if ist == "" {
@@ -277,7 +268,7 @@ func (s *MagicLinksService) createOrgHandler(w http.ResponseWriter, r *http.Requ
 // they complete the Discovery flow.
 // You will exchange the IST returned from the discovery.authenticate() method call to
 // complete the login process.
-func (s *MagicLinksService) exchangeOrgHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) exchangeOrgHandler(w http.ResponseWriter, r *http.Request) {
 	organizationId := r.PathValue("organizationId")
 	ist, exists := s.getSession(r, intermediateSessionKey)
 	if exists {
@@ -330,7 +321,7 @@ func (s *MagicLinksService) exchangeOrgHandler(w http.ResponseWriter, r *http.Re
 // a session on another Organization that they belong to, all while ensuring that each
 // Organization's authentication requirements are honored and respecting data isolation
 // between tenants.
-func (s *MagicLinksService) switchOrgsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) switchOrgsHandler(w http.ResponseWriter, r *http.Request) {
 	fullSession, _ := s.store.Get(r, sessionKey)
 	token := fullSession.Values["token"].(string)
 	if token == "" {
@@ -370,7 +361,7 @@ func (s *MagicLinksService) switchOrgsHandler(w http.ResponseWriter, r *http.Req
 
 // orgIndexHandler performs Organization Login (if the user is logged out) or
 // Session Exchange (if the user is logged in).
-func (s *MagicLinksService) orgIndexHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) orgIndexHandler(w http.ResponseWriter, r *http.Request) {
 	organizationSlug := r.PathValue("organizationSlug")
 	token, _ := s.getSession(r, sessionKey)
 
@@ -438,7 +429,7 @@ func (s *MagicLinksService) orgIndexHandler(w http.ResponseWriter, r *http.Reque
 //  2. Initiate magic link for an email alias (e.g. ada+1@stytch.com).
 //  3. After clicking the Magic Link you'll see the option to join the organization with JIT enabled
 //     Use your work email address to test this, as JIT cannot be enabled for common email domains.
-func (s *MagicLinksService) enableJitHandler(w http.ResponseWriter, r *http.Request) {
+func (s *AuthService) enableJitHandler(w http.ResponseWriter, r *http.Request) {
 	member, org, ok := s.authenticatedMemberAndOrg(w, r)
 	if !ok {
 		s.indexHandler(w, r)
@@ -491,7 +482,7 @@ const (
 )
 
 // getSession retrieves a session token located by the specified cookie name.
-func (s *MagicLinksService) getSession(r *http.Request, name string) (token string, exists bool) {
+func (s *AuthService) getSession(r *http.Request, name string) (token string, exists bool) {
 	session, err := s.store.Get(r, name)
 	if session == nil || err != nil {
 		return "", false
@@ -501,14 +492,14 @@ func (s *MagicLinksService) getSession(r *http.Request, name string) (token stri
 }
 
 // saveSession stores the provided token in a cookie, specified by name.
-func (s *MagicLinksService) saveSession(w http.ResponseWriter, r *http.Request, key, token string) {
+func (s *AuthService) saveSession(w http.ResponseWriter, r *http.Request, key, token string) {
 	session, _ := s.store.Get(r, key)
 	session.Values["token"] = token
 	_ = session.Save(r, w)
 }
 
 // clearSession deletes the token from the specified session.
-func (s *MagicLinksService) clearSession(w http.ResponseWriter, r *http.Request, key string) {
+func (s *AuthService) clearSession(w http.ResponseWriter, r *http.Request, key string) {
 	session, _ := s.store.Get(r, key)
 	delete(session.Values, "token")
 	_ = s.store.Save(r, w, session)
@@ -516,7 +507,7 @@ func (s *MagicLinksService) clearSession(w http.ResponseWriter, r *http.Request,
 
 // authenticatedMemberAndOrg retrieves the organizations.Member and organizations.Organization
 // from the Stytch API, based on the requester's session token.
-func (s *MagicLinksService) authenticatedMemberAndOrg(
+func (s *AuthService) authenticatedMemberAndOrg(
 	w http.ResponseWriter,
 	r *http.Request,
 ) (*organizations.Member, *organizations.Organization, bool) {
