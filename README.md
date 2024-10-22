@@ -1,7 +1,6 @@
 # Stytch: B2B Magic Links Example
 
-This repository contains a sample application demonstrating a B2B Magic Link and Google Auth
-flow using a Go backend.
+This repository contains a sample application demonstrating a B2B Magic Link and Google OAuth flow using a Go backend.
 
 ## Running Locally
 
