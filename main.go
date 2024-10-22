@@ -162,7 +162,7 @@ func (s *AuthService) authenticateHandler(w http.ResponseWriter, r *http.Request
 			DiscoveryMagicLinksToken: token,
 		})
 		if err != nil {
-			fmt.Printf("Error authenticating: %v\n", err)
+			log.Printf("Error authenticating: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
